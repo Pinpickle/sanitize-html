@@ -36,11 +36,23 @@ function sanitizeHtml(html, options) {
         allowedAttributesMap[tag][name] = true;
       });
     }
-    
+  });
+  var contentFunctionsMap = {};
+  _.each(options.contentFunctions, function(func, tag) {
+    if (typeof func === 'function') {
+      contentFunctionsMap[tag] = func;
+    }
+  });
+  var disallowedContentFunctionsMap = {};
+  _.each(options.disallowedContentFunctions, function(tag) {
+    disallowedContentFunctionsMap[tag] = true;
   });
   var depth = 0;
+  var disallowedFunctionDepth = 0;
   var skipMap = {};
   var skipText = false;
+  var startMap = [];
+  var attribMap = [];
   var parser = new htmlparser.Parser({
     onopentag: function(name, attribs) {
       var skip = false;
@@ -56,11 +68,12 @@ function sanitizeHtml(html, options) {
         // We want the contents but not this tag
         return;
       }
+      
       result += '<' + name;
-        
+      var sanitized = {};
       if (_.has(allowedAttributesMap, name)) {
-        var allowed = allowedAttributesMap[name],
-            sanitized = (typeof allowed === 'function') ? allowed(attribs) : sanitizeAttribs(attribs, allowed);
+        var allowed = allowedAttributesMap[name];
+        sanitized = (typeof allowed === 'function') ? allowed(attribs) : sanitizeAttribs(attribs, allowed);
         _.each(sanitized, function(value, a) {
           result += ' ' + a;
           if ((a === 'href') || (a === 'src')) {
@@ -79,6 +92,17 @@ function sanitizeHtml(html, options) {
         result += " />";
       } else {
         result += ">";
+        if (_.has(contentFunctionsMap, name)) {
+          //This is to see if we are within a tag that uses a contentFunction that doesn't want any of its children to also use one
+          if (disallowedFunctionDepth === 0) {
+              //So we can reference this later in the closing tag (depth has already been increased so we must compensate)
+              startMap[depth - 1] = result.length;
+              attribMap[depth - 1] = sanitized;
+          }
+        }
+      }
+      if (_.has(disallowedContentFunctionsMap, name)) {
+        disallowedFunctionDepth += 1;
       }
     },
     ontext: function(text) {
@@ -99,6 +123,14 @@ function sanitizeHtml(html, options) {
       if (_.has(selfClosingMap, name)) {
         // Already output />
         return;
+      }
+      if (_.has(startMap, depth)) {
+        result = result.slice(0, startMap[depth]) + contentFunctionsMap[name](result.slice(startMap[depth]), attribMap[depth]);
+        delete startMap[depth];
+        delete attribMap[depth];
+      }
+      if (_.has(disallowedContentFunctionsMap, name)) {
+        disallowedFunctionDepth -= 1;
       }
       result += "</" + name + ">";
     }
@@ -156,5 +188,7 @@ sanitizeHtml.defaults = {
     img: [ 'src' ]
   },
   // Lots of these won't come up by default because we don't allow them
-  selfClosing: [ 'img', 'br', 'hr', 'area', 'base', 'basefont', 'input', 'link', 'meta' ]
+  selfClosing: [ 'img', 'br', 'hr', 'area', 'base', 'basefont', 'input', 'link', 'meta' ],
+  contentFunctions: {},
+  disallowedContentFunctions: []
 };

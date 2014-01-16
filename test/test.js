@@ -55,6 +55,23 @@ describe('sanitizeHtml', function() {
         var newAttribs = {change: attribs.yes};
         return newAttribs;
       }}}), '<p change="yes"></p>');
-  })
+  });
+  it('should execute contentFunctions when asked to', function() {
+    assert.equal(sanitizeHtml('<a href="google.com">Content</a>', {contentFunctions: {a: function(content, attribs) {
+      return content + " and " + attribs.href;
+    }}}), '<a href="google.com">Content and google.com</a>');
+  });
+  it('should executed nested contentFunctions unless specified otherwise', function() {
+    assert.equal(sanitizeHtml('<a href="google.com"><p>Content</p></a>', {contentFunctions: {a: function(content, attribs) {
+      return content + " and " + attribs.href;
+    }, p: function(content, attribs) {
+      return content + " YEAH!";
+    }}}), '<a href="google.com"><p>Content YEAH!</p> and google.com</a>');
+  });
+  it('should not executed nested contentFunctions when told not to', function() {
+    assert.equal(sanitizeHtml('<a href="google.com"><a href="potato">Content</a></a>', {contentFunctions: {a: function(content, attribs) {
+      return content + " and " + attribs.href;
+    }}, disallowedContentFunctions: ['a']}), '<a href="google.com"><a href="potato">Content</a> and google.com</a>');
+  });
 });
 
