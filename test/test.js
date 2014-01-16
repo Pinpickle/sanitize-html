@@ -1,4 +1,5 @@
 var assert = require("assert");
+
 describe('sanitizeHtml', function() {
   var sanitizeHtml;
   it('should be successfully initialized', function() {
@@ -49,5 +50,11 @@ describe('sanitizeHtml', function() {
   it('should dump an uppercase javascript url', function() {
     assert.equal(sanitizeHtml('<a href="JAVASCRIPT:alert(\'foo\')">Hax</a>'), '<a href>Hax</a>');
   });
+  it('should execute functions when inside attribute maps', function() {
+      assert.equal(sanitizeHtml('<p yes="yes" no="no"></p>', { allowedAttributes: {p: function(attribs) {
+        var newAttribs = {change: attribs.yes};
+        return newAttribs;
+      }}}), '<p change="yes"></p>');
+  })
 });
 

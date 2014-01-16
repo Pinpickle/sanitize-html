@@ -28,10 +28,15 @@ function sanitizeHtml(html, options) {
   });
   var allowedAttributesMap = {};
   _.each(options.allowedAttributes, function(attributes, tag) {
-    allowedAttributesMap[tag] = {};
-    _.each(attributes, function(name) {
-      allowedAttributesMap[tag][name] = true;
-    });
+    if (typeof attributes === 'function') {
+      allowedAttributesMap[tag] = attributes;
+    } else {
+      allowedAttributesMap[tag] = {};
+      _.each(attributes, function(name) {
+        allowedAttributesMap[tag][name] = true;
+      });
+    }
+    
   });
   var depth = 0;
   var skipMap = {};
@@ -52,20 +57,21 @@ function sanitizeHtml(html, options) {
         return;
       }
       result += '<' + name;
+        
       if (_.has(allowedAttributesMap, name)) {
-        _.each(attribs, function(value, a) {
-          if (_.has(allowedAttributesMap[name], a)) {
-            result += ' ' + a;
-            if ((a === 'href') || (a === 'src')) {
-              if (naughtyHref(value)) {
-                return;
-              }
+        var allowed = allowedAttributesMap[name],
+            sanitized = (typeof allowed === 'function') ? allowed(attribs) : sanitizeAttribs(attribs, allowed);
+        _.each(sanitized, function(value, a) {
+          result += ' ' + a;
+          if ((a === 'href') || (a === 'src')) {
+            if (naughtyHref(value)) {
+              return;
             }
-            if (value.length) {
-              // Values are ALREADY escaped, calling escapeHtml here
-              // results in double escapes
-              result += '="' + value + '"';
-            }
+          }
+          if (value.length) {
+            // Values are ALREADY escaped, calling escapeHtml here
+            // results in double escapes
+            result += '="' + value + '"';
           }
         });
       }
@@ -100,7 +106,8 @@ function sanitizeHtml(html, options) {
   parser.write(html);
   parser.end();
   return result;
-
+  
+    
   function escapeHtml(s) {
     if (s === 'undefined') {
       s = '';
@@ -124,6 +131,18 @@ function sanitizeHtml(html, options) {
     return (!_.contains(['http', 'https', 'ftp', 'mailto' ], scheme));
   }
 }
+
+function sanitizeAttribs(attribs, allowed) {
+  var newAttribs = {};
+  _.each(attribs, function(value, a) { 
+    if (_.has(allowed, a)) {
+      newAttribs[a] = value;
+    }
+  });
+  return newAttribs;
+}
+
+//sanitizeHtml.sanitizeAttribs = sanitizeAttribs;
 
 // Defaults are accessible to you so that you can use them as a starting point
 // programmatically if you wish
