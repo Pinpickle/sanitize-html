@@ -68,10 +68,8 @@ describe('sanitizeHtml', function() {
       return content + " YEAH!";
     }}}), '<a href="google.com"><p>Content YEAH!</p> and google.com</a>');
   });
-  it('should not executed nested contentFunctions when told not to', function() {
-    assert.equal(sanitizeHtml('<a href="google.com"><a href="potato">Content</a></a>', {contentFunctions: {a: function(content, attribs) {
-      return content + " and " + attribs.href;
-    }}, disallowedContentFunctions: ['a']}), '<a href="google.com"><a href="potato">Content</a> and google.com</a>');
+  it('should not parse HTML when asked not to (even in badly formed HTML)', function() {
+    assert.equal(sanitizeHtml('<code><script>var derp</script></ code>', {dontParse: ['code']}), '<code>&lt;script&gt;var derp&lt;/script&gt;</code>');
   });
   it('should dump character codes 1-32 before testing scheme', function() {
     assert.equal(sanitizeHtml('<a href="java\0&#14;\t\r\n script:alert(\'foo\')">Hax</a>'), '<a href>Hax</a>');

@@ -43,18 +43,22 @@ function sanitizeHtml(html, options) {
       contentFunctionsMap[tag] = func;
     }
   });
-  var disallowedContentFunctionsMap = {};
-  _.each(options.disallowedContentFunctions, function(tag) {
-    disallowedContentFunctionsMap[tag] = true;
+  var dontParseMap = {};
+  _.each(options.dontParse, function(tag) {
+    dontParseMap[tag] = true;
   });
   var depth = 0;
-  var disallowedFunctionDepth = 0;
+  var dontParse = null;
+  var dontParseStart = 0;
   var skipMap = {};
   var skipText = false;
   var startMap = [];
   var attribMap = [];
   var parser = new htmlparser.Parser({
     onopentag: function(name, attribs) {
+      if (dontParse) {
+        return;
+      }
       var skip = false;
       if (!_.has(allowedTagsMap, name)) {
         skip = true;
@@ -93,20 +97,17 @@ function sanitizeHtml(html, options) {
       } else {
         result += ">";
         if (_.has(contentFunctionsMap, name)) {
-          //This is to see if we are within a tag that uses a contentFunction that doesn't want any of its children to also use one
-          if (disallowedFunctionDepth === 0) {
-              //So we can reference this later in the closing tag (depth has already been increased so we must compensate)
-              startMap[depth - 1] = result.length;
-              attribMap[depth - 1] = sanitized;
-          }
+          startMap[depth - 1] = result.length;
+          attribMap[depth - 1] = sanitized;
         }
       }
-      if (_.has(disallowedContentFunctionsMap, name)) {
-        disallowedFunctionDepth += 1;
+      if (_.has(dontParseMap, name)) {
+        dontParseStart = parser._tokenizer._index + 1;
+        dontParse = name;
       }
     },
     ontext: function(text) {
-      if (skipText) {
+      if ((skipText) || (dontParse)) {
         return;
       }
       // It is NOT actually raw text, entities are already escaped.
@@ -114,6 +115,16 @@ function sanitizeHtml(html, options) {
       result += text;
     },
     onclosetag: function(name) {
+      if ((dontParse) && (dontParse === name)) {
+        var ind = parser._tokenizer._sectionStart - 1;
+        while (parser._tokenizer._buffer.charAt(ind) !== "<") {
+          ind --;
+        }
+        result += escapeHtml(parser._tokenizer._buffer.substr(dontParseStart, ind - dontParseStart));
+        dontParse = null;
+      } else if (dontParse) {
+        return;
+      }
       skipText = false;
       depth--;
       if (skipMap[depth]) {
@@ -128,9 +139,6 @@ function sanitizeHtml(html, options) {
         result = result.slice(0, startMap[depth]) + contentFunctionsMap[name](result.slice(startMap[depth]), attribMap[depth]);
         delete startMap[depth];
         delete attribMap[depth];
-      }
-      if (_.has(disallowedContentFunctionsMap, name)) {
-        disallowedFunctionDepth -= 1;
       }
       result += "</" + name + ">";
     }
@@ -194,5 +202,5 @@ sanitizeHtml.defaults = {
   // Lots of these won't come up by default because we don't allow them
   selfClosing: [ 'img', 'br', 'hr', 'area', 'base', 'basefont', 'input', 'link', 'meta' ],
   contentFunctions: {},
-  disallowedContentFunctions: []
+  dontParse: []
 };
